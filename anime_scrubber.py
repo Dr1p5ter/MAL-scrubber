@@ -272,7 +272,7 @@ def read_anime_entry(anime_name: str, anime_url: str) -> None :
         response.raise_for_status()
     except RetryError as exception:
         print(f'{exception}')
-        print('Error occured when session was attempting for packet retrieval, wait then retry aftr 5 minutes')
+        print(f'Error occured when session was attempting for packet retrieval, wait then retry aftr {rtime / 60} minutes')
         sleep(rtime)
         raise Exception("RetryError occured within the session, retry this entry at a later date")
 
