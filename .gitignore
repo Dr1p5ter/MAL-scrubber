@@ -1,5 +1,7 @@
 __pycache__
 anime_data
+anime_data/./*
 season_data
+season_data/./*
 season_backtrack.txt
 MAL_season_links.csv
