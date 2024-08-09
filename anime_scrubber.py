@@ -14,6 +14,7 @@ from os import path, remove as rm
 from random import randint
 from requests import get as req_get, Session
 from requests.adapters import HTTPAdapter
+from requests.exceptions import RetryError
 from time import time, sleep
 from urllib3.util import Retry
 from uuid import UUID
@@ -44,8 +45,11 @@ dt_format = "%m/%d/%Y %H:%M:%S"
 indent_len = 4
 
 # pause intervals
-pmin, pmax = 3, 20
+pmin, pmax = 3, 30
 pfactor = 0.1
+
+# packet retry time
+rtime = 3 * 60
 
 # retry policy for each session
 retry_strategy = Retry(
@@ -61,17 +65,25 @@ def generate_MAL_csv() -> None :
     for that day. It is subject to change however, this should only be
     ran once a day typically.
     """
-    # create an adaptor holding the retry policy
-    adapter = HTTPAdapter(max_retries=retry_strategy)
+    try :
+        # create an adaptor holding the retry policy
+        adapter = HTTPAdapter(max_retries=retry_strategy)
 
-    # generate a session with the adapter
-    session = Session()
-    session.mount('http://', adapter)
-    session.mount('https://', adapter)
+        # generate a session with the adapter
+        session = Session()
+        session.mount('http://', adapter)
+        session.mount('https://', adapter)
 
-    # sent a GET request and raise for status changes other than success (200)
-    response = session.get(MAL_url)
-    response.raise_for_status()
+        # sent a GET request and raise for status changes other than success (200)
+        response = session.get(MAL_url)
+        response.raise_for_status()
+    except RetryError as exception:
+        # retry attempt if retry happens, this typically won't happen but needs to be handled
+        print(f'{exception}')
+        print(f'Error occured when session was attempting for packet retrieval, wait then retry aftr {rtime / 60} minutes')
+        sleep(rtime)
+        generate_MAL_csv()
+        return
 
     # parse the content with BeautifulSoup
     soup = BeautifulSoup(response.content, 'html.parser')
@@ -107,17 +119,29 @@ def read_season_entry(season_name: str, season_url: str) -> None :
     # grab data if it exists
     season_dict = {}
     if not path.exists(season_dir + season_name_to_file_name(season_name)) :
-        # create an adaptor holding the retry policy
-        adapter = HTTPAdapter(max_retries=retry_strategy)
+        # TODO: extend this try block to handle keyboard exceptions and other cases since this seems to happen often
+        try :
+            # create an adaptor holding the retry policy
+            adapter = HTTPAdapter(max_retries=retry_strategy)
 
-        # generate a session with the adapter
-        session = Session()
-        session.mount('http://', adapter)
-        session.mount('https://', adapter)
+            # generate a session with the adapter
+            session = Session()
+            session.mount('http://', adapter)
+            session.mount('https://', adapter)
 
-        # sent a GET request and raise for status changes other than success (200)
-        response = session.get(season_url)
-        response.raise_for_status()
+            # sent a GET request and raise for status changes other than success (200)
+            response = session.get(season_url)
+            response.raise_for_status()
+        except RetryError as exception:
+            # restart the entire season if a response error occurs
+            print(f'{exception}')
+            print(f'Error occured when session was attempting for packet retrieval, wait then retry aftr {rtime / 60} minutes')
+            sleep(rtime)
+            read_season_entry(season_name, season_url)
+            return
+
+        # parse the content with BeautifulSoup
+        soup = BeautifulSoup(response.content, 'html.parser')
 
         # parse the content with BeautifulSoup
         soup = BeautifulSoup(response.content, 'html.parser')
@@ -234,17 +258,23 @@ def read_anime_entry(anime_name: str, anime_url: str) -> None :
         anime_name -- name of the anime (season independent).
         anime_url -- url of the anime series.
     """
-    # create an adaptor holding the retry policy
-    adapter = HTTPAdapter(max_retries=retry_strategy)
+    try :
+        # create an adaptor holding the retry policy
+        adapter = HTTPAdapter(max_retries=retry_strategy)
 
-    # generate a session with the adapter
-    session = Session()
-    session.mount('http://', adapter)
-    session.mount('https://', adapter)
+        # generate a session with the adapter
+        session = Session()
+        session.mount('http://', adapter)
+        session.mount('https://', adapter)
 
-    # sent a GET request and raise for status changes other than success (200)
-    response = session.get(anime_url)
-    response.raise_for_status()
+        # sent a GET request and raise for status changes other than success (200)
+        response = session.get(anime_url)
+        response.raise_for_status()
+    except RetryError as exception:
+        print(f'{exception}')
+        print('Error occured when session was attempting for packet retrieval, wait then retry aftr 5 minutes')
+        sleep(rtime)
+        raise Exception("RetryError occured within the session, retry this entry at a later date")
 
     # parse the content with BeautifulSoup
     soup = BeautifulSoup(response.content, 'html.parser')
@@ -307,33 +337,41 @@ if __name__ == '__main__' :
         clean_data_dir()
         clean_backtrack_data()
     else :
-        # check if file is a day old (consistency issue)
-        if (datetime.now().strftime("%d/%m/%y") != datetime.fromtimestamp(path.getctime(MAL_season_sheet)).strftime("%d/%m/%y")) :
-            # remove the old/modified file from directory and generate it again
-            rm(MAL_season_sheet)
-            generate_MAL_csv()
-            clean_data_dir()
-            clean_backtrack_data()
+        try :
+            # read from MAL file
+            with open(MAL_season_sheet, 'r') as file :
+                for line in file.readlines() :
+                    key, value = line.rstrip().split(', ')
+                    archieve_dict[key] = value
+
+            # grab the list of completed searches by season
+            with open(backtrack_list_file_name, 'r') as file :
+                for line in file.readlines() :
+                    backtrack_list.append(line.rstrip())
+        except Exception as e :
+            print(e)
+            exit(-1)
+
+    # continuously go through each season until they are all read in
+    while True :
+        # go key by key in the archieve dict
+        for key in archieve_dict.keys() :
+            # if it is not in the backtrack_list read the season
+            if not key in backtrack_list :
+                read_season_entry(key, archieve_dict[key])
+
+        # grab the current count in the MAL sheet
+        count = 0
+        with open(MAL_season_sheet, 'r') as csv :
+            count = len(csv.readlines())
+        
+        # check if the count is equal to the amount in the backtrack_list
+        if count == len(backtrack_list) :
+            # ends program
+            break
         else :
-            try :
-                # read from MAL file
-                with open(MAL_season_sheet, 'r') as file :
-                    for line in file.readlines() :
-                        key, value = line.rstrip().split(', ')
-                        archieve_dict[key] = value
-
-                # grab the list of completed searches by season
-                with open(backtrack_list_file_name, 'r') as file :
-                    for line in file.readlines() :
-                        backtrack_list.append(line.rstrip())
-            except Exception as e :
-                print(e)
-                exit(-1)
-
-    # prepare to go through each season one at a time
-    for key in archieve_dict.keys() :
-        if not key in backtrack_list :
-            read_season_entry(key, archieve_dict[key])
+            # continues the loop until each entry has been read in
+            continue
 
     # exit on success
     exit(0)
