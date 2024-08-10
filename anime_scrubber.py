@@ -115,7 +115,6 @@ def read_season_entry(season_name: str, season_url: str) -> None :
         season_name -- The name of the season being read from.
         season_url -- The url being searched from.
     """
-
     # grab data if it exists
     season_dict = {}
     if not path.exists(season_dir + season_name_to_file_name(season_name)) :
@@ -187,9 +186,6 @@ def read_season_entry(season_name: str, season_url: str) -> None :
     else :
         with open(season_dir + season_name_to_file_name(season_name), 'r') as file :
             season_dict = json_load(file)
-
-    # set a generic timer to make sure packets aren't being sent to fast
-    sleep(randint(pmin, pmax) * pfactor)
 
     # go through each anime and grab the data
     anime_files = season_dict["seasonal_anime"]
@@ -343,11 +339,6 @@ if __name__ == '__main__' :
                 for line in file.readlines() :
                     key, value = line.rstrip().split(', ')
                     archieve_dict[key] = value
-
-            # grab the list of completed searches by season
-            with open(backtrack_list_file_name, 'r') as file :
-                for line in file.readlines() :
-                    backtrack_list.append(line.rstrip())
         except Exception as e :
             print(e)
             exit(-1)
@@ -357,16 +348,11 @@ if __name__ == '__main__' :
         # go key by key in the archieve dict
         for key in archieve_dict.keys() :
             # if it is not in the backtrack_list read the season
-            if not key in backtrack_list :
+            if not key in open(backtrack_list_file_name, 'r').readlines() :
                 read_season_entry(key, archieve_dict[key])
-
-        # grab the current count in the MAL sheet
-        count = 0
-        with open(MAL_season_sheet, 'r') as csv :
-            count = len(csv.readlines())
         
-        # check if the count is equal to the amount in the backtrack_list
-        if count == len(backtrack_list) :
+        # check if each season has been read through
+        if len(open(MAL_season_sheet, 'r').readlines()) == len(open(backtrack_list_file_name, 'r').readlines()) :
             # ends program
             break
         else :
