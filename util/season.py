@@ -1,13 +1,14 @@
 # imports
 
 from bs4 import BeautifulSoup
+from bson import ObjectId, json_util
 from datetime import datetime
-from json import dumps, load
+from json import load
 from os import path
 from threading import Lock, get_ident
 from util.mongodb import *
 from util.mount import *
-from util.tglob import *
+import util.tglob as tglob
 
 # static var
 
@@ -18,7 +19,7 @@ season_file = '_season_list.csv'                                     # file to h
 
 def make_season_list_to_csv(skip_if_exists : bool = True,
                             thread_info_enabled : bool = False,
-                            season_data_path : str = season_dir) -> int :    
+                            season_data_path : str = tglob.season_dir) -> int :    
     """
     make_season_list_to_csv -- Retrieves each season in the MAL archeive url
     and makes a file storing the names and urls associated for each season in
@@ -26,8 +27,8 @@ def make_season_list_to_csv(skip_if_exists : bool = True,
     season_data with the file name '_season_list.csv' for uniqueness.
 
     Keyword Arguments:
-        skip_if_exists -- When the file is already present just return -1 and
-        don't remake ( default: True )
+        skip_if_exists -- When the file is already present just return length
+        of file and don't remake ( default: True )
         thread_info_enabled -- When threads are implimented this will allow a
         print statement for debugging ( default: False )
         season_data_path -- This defines the destinnation the resultants are
@@ -41,11 +42,11 @@ def make_season_list_to_csv(skip_if_exists : bool = True,
     """
     # give a heads up in the console that this has been called
     if thread_info_enabled :
-        print(f'thread {get_ident():5} is running get_season_entry')
+        print(f'thread {get_ident():5} is running make_season_list_to_csv')
 
     # checks to see if it is already made
     if skip_if_exists and path.exists(season_data_path + season_file):
-        with season_file_RW_lock :
+        with tglob.season_file_RW_lock :
             with open(season_data_path + season_file, 'r') as file :
                 return len(file.readlines())
 
@@ -68,17 +69,14 @@ def make_season_list_to_csv(skip_if_exists : bool = True,
 
     # for each season link, add it into the MAL csv
     seasons_grabbed = 0
-    with season_file_RW_lock :
+    with tglob.season_file_RW_lock :
         with open(season_data_path + season_file, 'w+') as file :
             for tag in soup:
                 if tag.name == 'a' :
                     key, value = str(tag.text).strip(), str(tag.get('href')).strip()               
                     file.write(f'{key}, {value}\n')
-                    season_entry_RW_locks[key] = Lock()
+                    tglob.season_entry_RW_locks[key] = Lock()
                     seasons_grabbed += 1
-
-    # close connection variables
-    close_session(None, None, response)
 
     return  seasons_grabbed
 
@@ -99,7 +97,7 @@ def get_season_entry(season_name : str,
                      season_url : str,
                      to_mongodb : bool,
                      thread_info_enabled : bool = False,
-                     season_data_path : str = season_dir) -> dict | None :
+                     season_data_path : str = tglob.season_dir) -> dict | None :
     """
     get_season_entry : This function will retrieve the seasons entry from the
     season data subdirectory or fetch it using an HTTP GET request.
@@ -161,7 +159,7 @@ def get_season_entry(season_name : str,
             'season' : season_name.split(' ')[0].lower(),
             'year' : int(season_name.split(' ')[1]),
             'url' : season_url,
-            'datetime_entered' : datetime.now().strftime(datetime_format),
+            'datetime_entered' : datetime.now().strftime(tglob.datetime_format),
             'datetime_filled' : None,
             'all_anime_entries_filled' : False,
             'total_anime_entries' : 0,
@@ -178,7 +176,7 @@ def get_season_entry(season_name : str,
             anime_info = {
                 'name' : anime_name,
                 'url' : anime_url,
-                'datetime_entered' : datetime.now().strftime(datetime_format),
+                'datetime_entered' : datetime.now().strftime(tglob.datetime_format),
                 'datetime_filled' : None,
             }
 
@@ -188,7 +186,7 @@ def get_season_entry(season_name : str,
         # check to see if there are anime series present in series
         num_anime_entries = len(season_dict['seasonal_anime'])
         if num_anime_entries < 1 :
-            with season_file_RW_lock :
+            with tglob.season_file_RW_lock :
                 # remove season from list aquired from archeives
                 with open(season_data_path + season_file, 'r') as file : 
                     lines = [(line.split(', ')[0].strip(), line.split(', ')[1].strip()) for line in file.readlines()]
@@ -200,17 +198,14 @@ def get_season_entry(season_name : str,
                         file.write(f'{line[0]}, {line[1]}\n')
             
             # get rid of the lock for that speciic season
-            season_entry_RW_locks.pop(season_name)
-            
-            # close connection variables
-            close_session(None, None, response)
+            tglob.season_entry_RW_locks.pop(season_name)
 
             return None
         else :
             season_dict['total_anime_entries'] = num_anime_entries
 
         # write out the json as the season_name
-        with season_entry_RW_locks[season_name] :
+        with tglob.season_entry_RW_locks[season_name] :
             # tries to write it to mongodb
             if to_mongodb :
                 try :
@@ -219,23 +214,20 @@ def get_season_entry(season_name : str,
                                                            mongodb_season_collection,
                                                            thread_info_enabled=thread_info_enabled)
                     if  res:
-                        season_dict = grab_doc_from_mongo({'_id' : object_id},
+                        season_dict = grab_doc_from_mongo({'_id' : ObjectId(object_id)},
                                                         mongodb_database_name,
                                                         mongodb_season_collection,
                                                         thread_info_enabled=thread_info_enabled)
                 except Exception as e :
                     print(e)
-                    
+            
             # write to disk
             with open(season_data_path + season_name_to_file_name_json(season_name), 'w') as file :
-                file.write(dumps(season_dict, indent=4))
+                file.write(json_util.dumps(season_dict, indent=tglob.json_indent_len))
     else :
-        with season_entry_RW_locks[season_name] :
+        with tglob.season_entry_RW_locks[season_name] :
             with open(season_data_path + season_name_to_file_name_json(season_name), 'r') as file :
                 season_dict = load(file)
-    
-    # close connection variables
-    close_session(None, None, response)
 
     # return the season_dict
     return season_dict

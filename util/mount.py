@@ -56,24 +56,3 @@ def init_session(url : str,
         print(f'Error occured when session was attempting for packet retrieval, wait then retry aftr {retry_time / 60} minutes')
         sleep(retry_time)
         return (None, None, None, True, retry_func(*args, **kwargs))
-
-def close_session(adapter : HTTPAdapter | None,
-                  session : Session | None,
-                  response : Response | None) -> None :
-    """
-    close_session -- Closes all of the of the classes pertaining to
-    initializing the session. This function is flexible and is not required to
-    have all variables present.
-
-    Arguments:
-        adapter -- The http adapter
-        session -- The session to send a GET request
-        response -- The response object that holds GET information
-    """
-    if not response == None :
-        response.close()
-    if not session == None :
-        session.close()
-    if not adapter == None :
-        adapter.close()
-    return

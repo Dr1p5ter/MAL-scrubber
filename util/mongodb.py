@@ -37,7 +37,7 @@ def insert_doc_into_mongo(document : Any,
     """
     # give a heads up in the console that this has been called
     if thread_info_enabled :
-        print(f'thread {get_ident():5} is running insert_season_doc_into_mongo')
+        print(f'thread {get_ident():5} is running insert_doc_into_mongo')
 
     # make a connection to mongodb
     try:
@@ -53,7 +53,7 @@ def insert_doc_into_mongo(document : Any,
         # close the connection to mongodb
         client.close()
 
-        return (res.upserted_id(), res.acknowledged())
+        return (res.inserted_id(), res.acknowledged())
     except Exception as e:
         raise e
 
@@ -82,7 +82,7 @@ def grab_doc_from_mongo(query_criteria : dict,
     """
     # give a heads up in the console that this has been called
     if thread_info_enabled :
-        print(f'thread {get_ident():5} is running insert_season_doc_into_mongo')
+        print(f'thread {get_ident():5} is running grab_doc_from_mongo')
 
     # make a connection to mongodb
     try:
@@ -129,7 +129,7 @@ def update_doc_in_mongo(query_criteria : dict,
     """
     # give a heads up in the console that this has been called
     if thread_info_enabled :
-        print(f'thread {get_ident():5} is running insert_season_doc_into_mongo')
+        print(f'thread {get_ident():5} is running update_doc_in_mongo')
 
     # make a connection to mongodb
     try:

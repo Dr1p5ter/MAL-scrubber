@@ -1,15 +1,16 @@
 # imports
 
 from bs4 import BeautifulSoup
+from bson import ObjectId, json_util
 from datetime import datetime
 from hashlib import md5
-from json import dumps, load
+from json import load
 from os import path
 from threading import Lock, get_ident
-from util.season import season_dir, get_season_entry, season_name_to_file_name_json
+from util.season import get_season_entry, season_name_to_file_name_json
 from util.mongodb import *
 from util.mount import *
-from util.tglob import *
+import util.tglob as tglob
 
 # functions
 
@@ -19,8 +20,8 @@ def get_anime_entry(anime_name : str,
                     season_url : str,
                     to_mongodb : bool,
                     thread_info_enabled : bool = False,
-                    anime_data_path : str = anime_dir,
-                    season_data_path : str = season_dir) -> dict | None :
+                    anime_data_path : str = tglob.anime_dir,
+                    season_data_path : str = tglob.season_dir) -> dict | None :
     """
     get_anime_entry -- This function will go through an anime page and retrieve
     information pertaining to the series.
@@ -94,64 +95,63 @@ def get_anime_entry(anime_name : str,
         # anime_dict['staff'] = staff_dict
 
         # write the data to a file and update season file
-        with season_entry_RW_locks[season_name] :
-            # tries to write it to mongodb
-            if to_mongodb :
-                try :
-                    anime_object_id, res = insert_doc_into_mongo(anime_dict,
-                                                           mongodb_database_name,
-                                                           mongodb_anime_collection,
-                                                           thread_info_enabled=thread_info_enabled)
-                    if res :
-                        anime_dict = grab_doc_from_mongo({'_id' : anime_object_id},
-                                                         mongodb_database_name,
-                                                         mongodb_anime_collection,
-                                                         thread_info_enabled=thread_info_enabled)
-                except Exception as e :
-                    print(e)
+        
+        # tries to write it to mongodb
+        if to_mongodb :
+            try :
+                anime_object_id, res = insert_doc_into_mongo(anime_dict,
+                                                    mongodb_database_name,
+                                                    mongodb_anime_collection,
+                                                    thread_info_enabled=thread_info_enabled)
+                if res :
+                    anime_dict = grab_doc_from_mongo({'_id' : ObjectId(anime_object_id)},
+                                                    mongodb_database_name,
+                                                    mongodb_anime_collection,
+                                                    thread_info_enabled=thread_info_enabled)
+            except Exception as e :
+                print(e)
 
-            # write to disk
+        # write to disk
+        with tglob.season_entry_RW_locks[season_name] :
             with open(anime_data_path + anime_name_to_file_name_json(anime_name), 'w+') as file :
-                file.write(dumps(anime_dict, indent=json_indent_len))
-            
-            # read the season file entry
-            season_dict = get_season_entry(season_name,
-                                           season_url,
-                                           to_mongodb = to_mongodb,
-                                           thread_info_enabled = thread_info_enabled,
-                                           season_data_path = season_data_path)
-            
-            # update the season dictionary
-            anime_entry = next(anime for anime in season_dict['seasonal_anime'] if anime['name'] == anime_name)
-            anime_entry['datetime_filled'] = datetime.now().strftime(datetime_format)
+                file.write(json_util.dumps(anime_dict, indent=tglob.json_indent_len))
+        
+        # read the season file entry
+        season_dict = get_season_entry(season_name,
+                                    season_url,
+                                    to_mongodb = to_mongodb,
+                                    thread_info_enabled = thread_info_enabled,
+                                    season_data_path = season_data_path)
+        
+        # update the season dictionary
+        anime_entry = next(anime for anime in season_dict['seasonal_anime'] if anime['name'] == anime_name)
+        anime_entry['datetime_filled'] = datetime.now().strftime(tglob.datetime_format)
 
-            # tries to update document to mongodb
-            if to_mongodb :
-                try :
-                    season_object_id, res = update_doc_in_mongo({'_id' : season_dict},
-                                                         season_dict,
-                                                         mongodb_database_name,
-                                                         mongodb_season_collection,
-                                                         thread_info_enabled=thread_info_enabled)
-                    if res :
-                        season_dict = grab_doc_from_mongo({'_id' : season_object_id},
-                                                          mongodb_database_name,
-                                                          mongodb_season_collection,
-                                                          thread_info_enabled=thread_info_enabled)
-                except Exception as e :
-                    print(e)
+        # tries to update document to mongodb
+        if to_mongodb :
+            try :
+                season_object_id, res = update_doc_in_mongo({'_id' : season_dict['_id']},
+                                                    season_dict,
+                                                    mongodb_database_name,
+                                                    mongodb_season_collection,
+                                                    thread_info_enabled=thread_info_enabled)
+                if res :
+                    season_dict = grab_doc_from_mongo({'_id' : ObjectId(season_object_id)},
+                                                    mongodb_database_name,
+                                                    mongodb_season_collection,
+                                                    thread_info_enabled=thread_info_enabled)
+            except Exception as e :
+                print(e)
 
-            # write change to disk
+        # write change to disk
+        with tglob.season_entry_RW_locks[season_name] :
             with open(season_data_path + season_name_to_file_name_json(season_name), 'w+') as file :
-                file.write(dumps(season_dict, indent=json_indent_len))
+                file.write(json_util.dumps(season_dict, indent=tglob.json_indent_len))
     else :
         # read the entry and return it
-        with season_entry_RW_locks[season_name] :
+        with tglob.season_entry_RW_locks[season_name] :
             with open(anime_data_path + anime_name_to_file_name_json, 'r') as file :
                 anime_dict = load(file)
-
-    # close connection variables
-    close_session(None, None, response)
 
     # return the season_dict
     return anime_dict
@@ -239,7 +239,6 @@ def get_anime_background_section(anime_dict : dict, soup : BeautifulSoup) -> Non
     txt = ' '.join(textblock).strip()
     txt = txt[txt.find("Background") + len("Background"):].strip()
     anime_dict['background'] = txt
-    print(txt)
 
 def get_anime_character_staff_section(anime_url : str) -> tuple[dict, dict] :
     """
