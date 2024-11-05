@@ -11,10 +11,6 @@ from util.mongodb import *
 from util.mount import *
 from util.tglob import *
 
-# static var
-
-...
-
 # functions
 
 def get_anime_entry(anime_name : str, 
@@ -99,30 +95,55 @@ def get_anime_entry(anime_name : str,
 
         # write the data to a file and update season file
         with season_entry_RW_locks[season_name] :
-            # write anime file into data path
+            # tries to write it to mongodb
+            if to_mongodb :
+                try :
+                    anime_object_id, res = insert_doc_into_mongo(anime_dict,
+                                                           mongodb_database_name,
+                                                           mongodb_anime_collection,
+                                                           thread_info_enabled=thread_info_enabled)
+                    if res :
+                        anime_dict = grab_doc_from_mongo({'_id' : anime_object_id},
+                                                         mongodb_database_name,
+                                                         mongodb_anime_collection,
+                                                         thread_info_enabled=thread_info_enabled)
+                except Exception as e :
+                    print(e)
+
+            # write to disk
             with open(anime_data_path + anime_name_to_file_name_json(anime_name), 'w+') as file :
                 file.write(dumps(anime_dict, indent=json_indent_len))
             
-            # read the season file entry here and update it
+            # read the season file entry
             season_dict = get_season_entry(season_name,
                                            season_url,
                                            to_mongodb = to_mongodb,
                                            thread_info_enabled = thread_info_enabled,
                                            season_data_path = season_data_path)
-
-            # make sure that the season_dict is not None
-            if season_dict == None :
-                return None
             
             # update the season dictionary
             anime_entry = next(anime for anime in season_dict['seasonal_anime'] if anime['name'] == anime_name)
             anime_entry['datetime_filled'] = datetime.now().strftime(datetime_format)
-            with open(season_data_path + season_name_to_file_name_json(season_name), 'r') as file :
+
+            # tries to update document to mongodb
+            if to_mongodb :
+                try :
+                    season_object_id, res = update_doc_in_mongo({'_id' : season_dict},
+                                                         season_dict,
+                                                         mongodb_database_name,
+                                                         mongodb_season_collection,
+                                                         thread_info_enabled=thread_info_enabled)
+                    if res :
+                        season_dict = grab_doc_from_mongo({'_id' : season_object_id},
+                                                          mongodb_database_name,
+                                                          mongodb_season_collection,
+                                                          thread_info_enabled=thread_info_enabled)
+                except Exception as e :
+                    print(e)
+
+            # write change to disk
+            with open(season_data_path + season_name_to_file_name_json(season_name), 'w+') as file :
                 file.write(dumps(season_dict, indent=json_indent_len))
-            
-        if to_mongodb :
-            insert_doc_into_mongo(anime_dict, mongodb_database_name, mongodb_anime_collection)
-            # TODO: update season_dict with mongodb
     else :
         # read the entry and return it
         with season_entry_RW_locks[season_name] :

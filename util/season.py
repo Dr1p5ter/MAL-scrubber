@@ -211,12 +211,24 @@ def get_season_entry(season_name : str,
 
         # write out the json as the season_name
         with season_entry_RW_locks[season_name] :
+            # tries to write it to mongodb
+            if to_mongodb :
+                try :
+                    object_id, res = insert_doc_into_mongo(season_dict,
+                                                           mongodb_database_name,
+                                                           mongodb_season_collection,
+                                                           thread_info_enabled=thread_info_enabled)
+                    if  res:
+                        season_dict = grab_doc_from_mongo({'_id' : object_id},
+                                                        mongodb_database_name,
+                                                        mongodb_season_collection,
+                                                        thread_info_enabled=thread_info_enabled)
+                except Exception as e :
+                    print(e)
+                    
+            # write to disk
             with open(season_data_path + season_name_to_file_name_json(season_name), 'w') as file :
                 file.write(dumps(season_dict, indent=4))
-
-        # tries to write it to mongodb
-        if to_mongodb :
-            insert_doc_into_mongo(season_dict, mongodb_database_name, mongodb_season_collection)
     else :
         with season_entry_RW_locks[season_name] :
             with open(season_data_path + season_name_to_file_name_json(season_name), 'r') as file :
