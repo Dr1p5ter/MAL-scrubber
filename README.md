@@ -2,22 +2,45 @@
 
 ## Table of Contents
 
+<!-- * [Installation](https://github.com/Dr1p5ter/MAL-scrubber#Installation) -->
 * [Description](https://github.com/Dr1p5ter/MAL-scrubber#Description)
+* [Testing](https://github.com/Dr1p5ter/MAL-scrubber#Testing)
+* [MongoDB](https://github.com/Dr1p5ter/MAL-scrubber#MongoDB)
 * [Database Snapshots](https://github.com/Dr1p5ter/MAL-scrubber#Database_Snapshots)
 * [Current Plans For Now](https://github.com/Dr1p5ter/MAL-scrubber#Current_Plans_For_Now)
+* [Contact](https://github.com/Dr1p5ter/MAL-scrubber#Contact)
 
 ## Description
 
-> This application will incrimentally parse web packets through a website called myanimelist.net to get every series known up to the date the data was scrubbed. It will store the results in json format and encrypt the names of the anime records by the name using MD5.
-> The intuition behind MD5 hash codes and why it is helpful is to provide a unique identifier that is within a 32 byte max field. Certain anime names consist of over 32 characters in length so this helps reduce the amount of storage. This can be managed my multiple
-> threads but for now this is utilizing only 1 thread. I have to stress this, DO NOT flood servers without implimenting some sort of 'back off' protocol. If mine is utilized, there can be longer pauses. I don't take responsibility for anyone abusing servers with my
-> code. Use responsibly.
+> This project is dedicated to my personal growth with MongoDB and Flask. I want to emphasize I am not finished with all the parts but I am almost finished with the application portion. Most of the heavy lifting will be done through local instances that incorperating a naive approach to cacheing. Database retrieval will be set to default midst runtime with Flask. This portion of the project has not been implemented yet.
+
+> The subdirectory '/util' contains most if not all of the helper functions that Flask will be using on runtime. app.py will be dedicated for Flask and all other html,css,js files will have their own subdirectories in the future.
+
+> The subdirectory '/anime_data' and '/season_data' will hold cached data and will be used frequently during runtime. DO NOT delete the files or the subdirectories when running. Deletions should be made through a restart of application or from timestamp of data exceeding the 2 week threshold. Once exceeded the subdirectories are automatically deleted on start up.
+
+#### Disclaimer
+> I will change this at some point consult README.md for changes.
+
+## Testing
+
+> I have begun to extensively test with unittest for python 3.12 and can be done with any version past 3.6.* with the modules I have installed. I will make a requirement.txt later. Stay tuned.
+
+### MongoDB
+
+> Testing database implementation needs to be throughly investigated further. Stay tuned.
 
 ## Database Snapshots
 
-> I will upload data I personally grab off my computer. They are zipped using 7-ZIP and compressed roughly 8 times smaller than the original size. If wanting to do any processing over the data, access each record through the subfolder '\season_data' to allow for
-> accurate and constant time I/O processes. Every record has a timestamp associated with the moment the file was downloaded. There are missing fields so make sure you take this into accound if you use the dataclass decorator in python.
+> I have uploaded an archeived version of data grabbed prior to object retrieval changes. These can be accessed through 7Zip. They are compressed to about an 8th the size. This data is free and available to the public but keep in mind that the data is not complete and is dirty.
+
+> Please consult '/archeive_data' for archeived snapshots.
 
 ## Current Plans For Now
 
-> I want to make a file strictly for cleaning up each record. This is currently in a work in progress.
+> While I have a bunch of work I want to do with this project, nothing is more important right now than finishing the helper functions and beginning to implement Flask as well as a GUI app for users. I might make another repository dedicated to making a login system that works to access the data from both current and previous database snapshots.
+
+## Contact
+
+I am always eager to learn. If you think I can make something better feel free to contact me anytime!!
+
+email: mmclaren2021@outlook.com
