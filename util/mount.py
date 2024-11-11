@@ -4,6 +4,7 @@ from requests import Session, Response
 from requests.adapters import HTTPAdapter
 from requests.exceptions import RetryError
 from time import sleep
+from threading import get_ident
 from typing import Any, Callable
 from urllib3.util import Retry
 
@@ -11,8 +12,10 @@ from urllib3.util import Retry
 
 retry_time = 3 * 60                                                  # retry time in case of time out
 retry_strategy = Retry(                                              # retry policy for each session
-    total=3,                                                         #
-    backoff_factor=5,                                                # DO NOT MODIFY
+    total=8,                                                         #
+    backoff_factor=15,                                               # DO NOT MODIFY
+    backoff_max=60*4,                                                #
+    backoff_jitter=5,                                                #
     status_forcelist=[405, 429, 500, 502, 503, 504],                 #
 )                                                                    #
 
@@ -20,8 +23,9 @@ retry_strategy = Retry(                                              # retry pol
 
 def init_session(url : str,
                  retry_func : Callable,
+                 thread_info_enabled : bool,
                  args : list = [],
-                 kwargs : dict = {}) -> tuple[HTTPAdapter, Session, Response, bool, Any] :
+                 kwargs : dict = {}) -> tuple[Any, bool, Any] :
     """
     init_session -- This function begins an http session with a url that will
     be used to parse the contents of a GET request. This function will retry 
@@ -30,14 +34,24 @@ def init_session(url : str,
     Arguments:
         url -- String referencing the url to visit
         retry_func -- The parent function calling this function
+        thread_info_enabled -- When threads are implimented this will allow a
+        print statement for debugging
+    
+    Keyword Arguments:
         args -- The parent function's arguments ( default : [] )
         kwargs -- The parent function's keyward arguments ( default : {} )
 
     Returns:
-        A tuple containing the http adapter, the http session, and the GET
-        request from the session in that order;
+        A tuple containing the content property of the Response class
+        corrisponding to the HTTP request, a boolean that dictates if the
+        function had to be retried, and the resultant of the retried call
+        to the function.
     """
     try :
+        # give a heads up in the console that this has been called
+        if thread_info_enabled :
+            print(f'thread {get_ident():5} is running init_session')
+
         # create an adaptor holding the retry policy
         adapter = HTTPAdapter(max_retries=retry_strategy)
 
@@ -49,10 +63,25 @@ def init_session(url : str,
         # sent a GET request and raise for status changes other than success (200)
         response = session.get(url)
         response.raise_for_status()
-        return (adapter, session, response, False, None)
+
+        # grab the content from the response
+        content = response.content
+
+        # close session
+        session.close()
+
+        # return tuple after close
+        return (content, False, None)
     except RetryError as exception:
+        # give a heads up in the console that this has been called
+        if thread_info_enabled :
+            print(f'thread {get_ident():5} ran into a RetryError ({exception})')
+        else :
+            print(f'ran into a RetryError ({exception})')
+        
+        # close session
+        session.close()
+
         # restart the entire season if a response error occurs
-        print(f'{exception}')
-        print(f'Error occured when session was attempting for packet retrieval, wait then retry aftr {retry_time / 60} minutes')
         sleep(retry_time)
-        return (None, None, None, True, retry_func(*args, **kwargs))
+        return (None, True, retry_func(*args, **kwargs))
