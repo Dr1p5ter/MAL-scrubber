@@ -221,3 +221,8 @@ def get_season_entry(season_name : str,
 
     # return the season_dict
     return season_dict
+
+def update_season_entry_to_disk(season_entry : dict) -> None :
+    with season_dir_lock :
+        with open(season_dir + season_name_to_file_name(season_entry['season'] + ' ' + str(season_entry['year'])), 'w') as file :
+            file.write(dumps(season_entry, indent=json_indent_len))

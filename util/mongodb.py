@@ -58,7 +58,7 @@ def insert_doc_into_mongo(document : Any,
         # close the connection to mongodb
         client.close()
 
-        return res.acknowledged()
+        return res.acknowledged
     except Exception as e:
         raise e
 
@@ -106,7 +106,7 @@ def grab_doc_from_mongo(query_criteria : dict,
         raise e
 
 def update_doc_in_mongo(query_criteria : dict,
-                        values : dict,
+                        new_document : dict,
                         database : str,
                         collection : str,
                         thread_info_enabled : bool) -> bool :
@@ -115,7 +115,7 @@ def update_doc_in_mongo(query_criteria : dict,
 
     Arguments:
         query_criteria -- The criteria for the query to search on
-        values -- The new value to change/modofy
+        new_document -- The new document with changes
         database -- The name of the database within mongodb
         collection -- The collection inside of the database
         thread_info_enabled -- When threads are implimented this will allow a
@@ -139,23 +139,25 @@ def update_doc_in_mongo(query_criteria : dict,
         # go to collection
         col = client[database][collection]
 
-        # update the document from mongodb
-        operation = {'$set' : values}
-        res = col.update_one(query_criteria, operation)
+        # replace old document
+        res = col.replace_one(query_criteria, new_document)
 
         # close the connection to mongodb
         client.close()
 
-        return res.acknowledged()
+        return res.acknowledged
     except Exception as e:
         raise e
 
-def drop_docs_in_collections() :
+def drop_docs_in_collection(collection : str) -> None :
     """
     drop_docs_in_collections -- This function is an initialization function in
     charge of cleaning the database to ensure insertions upon scrubbing doesn't
     insert documents with same key
 
+    Arguments:
+        collection -- the name of the collection to clean
+    
     Raises:
         Exception: Connection/Issue pertaining to MongoDB
     """
@@ -165,9 +167,8 @@ def drop_docs_in_collections() :
         client.admin.command("ping")
 
         # go to each collection and clean the documents in the database
-        for collection in [mongodb_anime_collection, mongodb_season_collection] :
-            count_deleted = client[mongodb_database_name][collection].delete_many({})
-            print(f'docs deleted in {collection} collection : {count_deleted}')
+        count_deleted = client[mongodb_database_name][collection].delete_many({})
+        print(f'docs deleted in {collection} collection : {count_deleted}')
 
         # close the connection
         client.close()

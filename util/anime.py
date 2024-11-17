@@ -52,21 +52,21 @@ def get_anime_entry(anime_id : int,
 
     # grab data if it exists
     anime_dict = {}
-    if not path.exists(anime_data_path + anime_name_to_file_name(anime_name)) :
+    if not path.exists(anime_data_path + anime_id_to_file_name(anime_id)) :
         # establish connection
         content, retried, ret = init_session(anime_url,
-                                              get_anime_entry,
-                                              thread_info_enabled,
-                                              args = [
-                                                  anime_id,
-                                                  anime_name, 
-                                                  anime_url,
-                                                  to_mongodb,
-                                                  thread_info_enabled
-                                              ],
-                                              kwargs = {
-                                                  'anime_data_path' : anime_data_path
-                                              })
+                                             get_anime_entry,
+                                             thread_info_enabled,
+                                             args = [
+                                                 anime_id,
+                                                 anime_name, 
+                                                 anime_url,
+                                                 to_mongodb,
+                                                 thread_info_enabled
+                                             ],
+                                             kwargs = {
+                                                 'anime_data_path' : anime_data_path
+                                             })
 
         # if the entire function needed a reset return the value finished with even if None
         if retried :
@@ -88,11 +88,10 @@ def get_anime_entry(anime_id : int,
         for func in section_list_func :
             func(anime_dict, BeautifulSoup(content, 'html.parser'))
 
-        # TODO: finish the character/staff parsing
         # traverse the character/staff fields as well
-        # char_dict, staff_dict = get_anime_character_staff_section(anime_url)
-        # anime_dict['characters'] = char_dict
-        # anime_dict['staff'] = staff_dict
+        char_dict, staff_dict = get_anime_character_staff_section(anime_url, thread_info_enabled)
+        anime_dict['characters'] = char_dict
+        anime_dict['staff'] = staff_dict
         
         # tries to write it to mongodb
         if to_mongodb :
@@ -106,29 +105,29 @@ def get_anime_entry(anime_id : int,
 
         # write to disk
         with anime_dir_lock :
-            with open(anime_data_path + anime_name_to_file_name(anime_name), 'w+') as file :
+            with open(anime_data_path + anime_id_to_file_name(anime_id), 'w+') as file :
                 file.write(dumps(anime_dict, indent=json_indent_len))
     else :
         # read the entry and return it
         with anime_dir_lock :
-            with open(anime_data_path + anime_name_to_file_name, 'r') as file :
+            with open(anime_data_path + anime_id_to_file_name(anime_id), 'r') as file :
                 anime_dict = load(file)
 
     # return the season_dict
     return anime_dict
 
-def anime_name_to_file_name(anime_name : str) -> str : 
+def anime_id_to_file_name(anime_id : int) -> str : 
     """
-    anime_name_to_file_name : This function is a helper function make
+    anime_id_to_file_name : This function is a helper function make
     getting a file name more human readable.
 
     Arguments:
-        anime_name -- The name of the anime as a string
+        anime_id -- The id of the anime as a string
 
     Returns:
         file name that should corispond to the season
     """
-    return anime_name.lower().replace(' ', '_').replace('.', '-') + ".json"
+    return 'anime_' + str(anime_id) + ".json"
 
 def get_anime_information_section(anime_dict : dict, soup : BeautifulSoup) -> None :
     """
@@ -179,29 +178,7 @@ def get_anime_synopsis_section(anime_dict : dict, soup : BeautifulSoup) -> None 
     synop = "".join([line.get_text(strip=True) for line in soup.find_all('p', itemprop='description')])
     anime_dict['synopsis'] = synop
 
-def get_anime_background_section(anime_dict : dict, soup : BeautifulSoup) -> None :
-    """
-    get_anime_background_section -- This function grabs the background field
-    from the page content.
-
-    Arguments:
-        anime_dict -- The dictionary containing the anime entry
-        soup -- The response content from the session
-    """
-    soup = soup.find("td", class_="pb24")
-    for div in soup.find_all('div', class_=['border_top', 'pb16', 'floatRightHeader']) :
-        div.decompose()
-    soup.prettify()
-
-    textblock = []
-    for element in soup :
-        textblock.append(element.text)
-
-    txt = ' '.join(textblock).strip()
-    txt = txt[txt.find("Background") + len("Background"):].strip()
-    anime_dict['background'] = txt
-
-def get_anime_character_staff_section(anime_url : str) -> tuple[dict, dict] :
+def get_anime_character_staff_section(anime_url : str, thread_info_enabled : bool) -> tuple[dict, dict] :
     """
     get_anime_character_staff_section -- This function will grab the character
     and staff information from each entry and record the results in seperate
@@ -211,24 +188,50 @@ def get_anime_character_staff_section(anime_url : str) -> tuple[dict, dict] :
 
     Arguments:
         anime_url -- The url that is connected to the anime entry
+        thread_info_enabled -- When threads are implimented this will allow a
+        print statement for debugging
 
     Returns:
         A tuple containing both the character and staff dictionaries.
     """
-    response, retried, ret = init_session(anime_url + '/characters', get_anime_character_staff_section, [anime_url + '/characters'])[2:]
+    # grab the content from the GET request
+    content, retried, ret = init_session(anime_url + '/characters',
+                                         get_anime_character_staff_section,
+                                         thread_info_enabled,
+                                         [anime_url + '/characters'])
     if retried :
         return ret
     
-    soup = BeautifulSoup(response.content, 'html.parser')
+    # grab context for each section
+    soup = BeautifulSoup(content, 'html.parser')
     character_ctx = soup.find_all('table', class_='js-anime-character-table')
+    staff_ctx = soup.find_all('td', class_=['borderClass bgColor1', 'borderClass bgColor2'])
+
+    # grab character information
+    character_entries = {}
     for ctx in character_ctx :
         character_name = ctx.find('h3', class_='h3_character_name').text.strip()
-        print(character_name)
+        character_entries[character_name] = {}
         for atx in ctx.find_all('tr', class_='js-anime-character-va-lang') :
-            actor_link = atx.find('a').get('href')
-            actor_name = atx.find('a').text
-            print(f'{actor_name} - {actor_link}')
-        print("=============================")
+            actor_link = atx.find('a').get('href').strip()
+            actor_name = atx.find('a').text.strip()
+            actor_lang = atx.find('div', class_='spaceit_pad js-anime-character-language').text.strip()
+            character_entries[character_name][actor_name] = {
+                'link' : actor_link,
+                'language' : actor_lang
+            }
+    
+    # grab staff information
+    staff_entries = {}
+    for ctx in staff_ctx :
+        staff_name = ctx.find('a').text.strip()
+        staff_link = ctx.find('a').get('href').strip()
+        staff_role = ctx.find('div', class_='spaceit_pad').text.strip()
+        if staff_name != staff_role :
+            staff_entries[staff_name] = {
+                'link' : staff_link,
+                'position' : staff_role
+            }
 
-    return (None, None)
+    return (character_entries, staff_entries)
     
