@@ -5,8 +5,6 @@ from util.anime import anime_dir
 from util.season import season_dir
 from util.mongodb import drop_docs_in_collection, mongodb_season_collection, mongodb_anime_collection
 
-# remove documents from mongodb if any documents present
-
 # remove the season data if it exists
 if path.exists(season_dir) :
     for file in listdir(season_dir) :

@@ -1,20 +1,18 @@
 # imports
 
 from bs4 import BeautifulSoup
-from datetime import datetime
-from hashlib import sha256
 from json import dumps, load
 from os import path
 from threading import Lock, get_ident
-from util.mongodb import *
+from util.datenow import get_datetime_now
+from util.jsonformat import json_indent_len
+from util.mongodb import get_anime_id, get_season_id, mongodb_season_collection, mongodb_database_name, insert_doc_into_mongo
 from util.mount import *
 
 # static var
 
 archive_file = 'archeive_list.csv'                                   # file to hold all season titles
 archive_url = "https://myanimelist.net/anime/season/archive"         # MAL link for the seasonal anime archive page
-datetime_format = "%m/%d/%Y %H:%M:%S"                                # format for the datetime variable
-json_indent_len = 4                                                  # readable indent size
 season_dir = "season_data/"                                          # seasonal data directory path relative to util folder
 season_dir_lock = Lock()                                             # lock preventing two files from RW action to a season file at the same time
 
@@ -168,7 +166,7 @@ def get_season_entry(season_name : str,
             'season' : season_name.split(' ')[0].lower(),
             'year' : int(season_name.split(' ')[1]),
             'url' : season_url,
-            'datetime_entered' : datetime.now().strftime(datetime_format),
+            'datetime_entered' : get_datetime_now(),
             'datetime_filled' : None,
             'all_anime_entries_filled' : False,
             'total_anime_entries' : 0,
@@ -195,7 +193,7 @@ def get_season_entry(season_name : str,
         num_anime_entries = len(season_dict['seasonal_anime'])
         if num_anime_entries < 1 :
             season_dict['all_anime_entries_filled'] = True
-            season_dict['datetime_filled'] = datetime.now().strftime(datetime_format)
+            season_dict['datetime_filled'] = get_datetime_now()
         else :
             season_dict['total_anime_entries'] = num_anime_entries
         season_dict['total_anime_entries'] = num_anime_entries

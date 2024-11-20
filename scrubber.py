@@ -1,9 +1,11 @@
 from concurrent.futures import ThreadPoolExecutor
 from json import load
 from os import listdir
-from util.anime import *
+from util.anime import get_anime_entry
+from util.datenow import get_datetime_now
 from util.init import *
-from util.season import *
+from util.mongodb import update_doc_in_mongo, mongodb_database_name, mongodb_season_collection
+from util.season import get_season_entry, make_archive_list_to_csv, archive_file, season_dir, update_season_entry_to_disk
 
 # does nothing CRUD app
 if __name__ == '__main__' :
@@ -48,7 +50,7 @@ if __name__ == '__main__' :
                     for anime in anime_entries]
                 
             # update the season information and write it 
-            season_entry['datetime_filled'] = datetime.now().strftime(datetime_format)
+            season_entry['datetime_filled'] = get_datetime_now()
             season_entry['all_anime_entries_filled'] = True
 
             # update this to disk
