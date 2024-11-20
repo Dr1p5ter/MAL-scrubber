@@ -13,6 +13,7 @@ from util.mount import *
 
 anime_dir = "anime_data/"                                            # anime data directory path relative to util folder
 anime_dir_lock = Lock()                                              # lock preventing two files from RW action to an anime file at the same time
+info_not_found_str_regex = 'None found,add some'                     # regex for locating field values to not be split (looks weird)
 
 # functions
 
@@ -89,8 +90,10 @@ def get_anime_entry(anime_id : int,
 
         # traverse the character/staff fields as well
         char_dict, staff_dict = get_anime_character_staff_section(anime_url, thread_info_enabled)
-        anime_dict['characters'] = char_dict
-        anime_dict['staff'] = staff_dict
+        if char_dict != None :
+            anime_dict['characters'] = char_dict
+        if staff_dict != None :
+            anime_dict['staff'] = staff_dict
         
         # tries to write it to mongodb
         if to_mongodb :
@@ -165,7 +168,7 @@ def get_anime_information_section(anime_dict : dict, soup : BeautifulSoup) -> No
         idx = line.find(':')
         if idx > 0  and line[-1] != ':':
             attr, values = line[:idx], line[idx+1:]
-            if values.find(',') < len(values) :
+            if values.find(',') < len(values) and values.strip() != info_not_found_str_regex:
                 if values.find(',') > 0  and values[values.find(',') + 1].isalpha() :
                     values = [v.strip() for v in values.split(',')]
             anime_dict[attr.lower()] = values
@@ -179,8 +182,12 @@ def get_anime_synopsis_section(anime_dict : dict, soup : BeautifulSoup) -> None 
         anime_dict -- The dictionary containing the anime entry
         soup -- The response content from the session
     """
-    synop = "".join([line.get_text(strip=True) for line in soup.find_all('p', itemprop='description')])
-    anime_dict['synopsis'] = synop
+    try :
+        synop = "".join([line.get_text(strip=True) for line in soup.find_all('p', itemprop='description')])
+        anime_dict['synopsis'] = synop
+    except Exception as catch_all :
+        # TODO: log for catchall
+        ...
 
 def get_anime_character_staff_section(anime_url : str, thread_info_enabled : bool) -> tuple[dict, dict] :
     """
@@ -207,43 +214,64 @@ def get_anime_character_staff_section(anime_url : str, thread_info_enabled : boo
     # grab context for each section
     soup = BeautifulSoup(content, 'html.parser')
 
-    character_soup = soup.find('div', class_='anime-character-container js-anime-character-container')
-    character_soup = character_soup.find_all('table', class_='js-anime-character-table')
-
-    staff_soup = soup.find('div', class_='rightside js-scrollfix-bottom-rel')
-    staff_soup = staff_soup.find_all('table', class_=None)
-
     # grab character information
     character_entries = {}
-    for table in character_soup :
-        character_name = table.find('h3', class_='h3_character_name').text.strip()
-        character_favorites = table.find('div', class_='js-anime-character-favorites').text.strip()
-        character_entries[character_name] = {
-            'favorites' : character_favorites,
-            'actors' : []
-        }
-        for tr in table.find_all('tr', class_='js-anime-character-va-lang') :
-            td = tr.find('td', attrs={'align' : 'right', 'style' : 'padding: 0 4px;', 'valign' : 'top'})
-            actor_entry = {
-                'name' : td.find('a').text.strip(),
-                'language' : td.find('div', class_='js-anime-character-language').text.strip(),
-                'link' : td.find('a').get('href').strip()
+    try :
+        # grab the character_soup
+        character_soup = soup.find('div', class_='anime-character-container js-anime-character-container')
+        character_soup = character_soup.find_all('table', class_='js-anime-character-table')
+
+        # go through the table elements and attempt to parse the character data
+        for table in character_soup :
+            character_name = table.find('h3', class_='h3_character_name').text.strip()
+            character_favorites = table.find('div', class_='js-anime-character-favorites').text.strip()
+            character_entries[character_name] = {
+                'favorites' : character_favorites,
+                'actors' : []
             }
-            character_entries[character_name]['actors'].append(actor_entry)
+            for tr in table.find_all('tr', class_='js-anime-character-va-lang') :
+                td = tr.find('td', attrs={'align' : 'right', 'style' : 'padding: 0 4px;', 'valign' : 'top'})
+                actor_entry = {
+                    'name' : td.find('a').text.strip(),
+                    'language' : td.find('div', class_='js-anime-character-language').text.strip(),
+                    'link' : td.find('a').get('href').strip()
+                }
+                character_entries[character_name]['actors'].append(actor_entry)
+    except AttributeError as e :
+        # TODO: log this at some point
+        ...
+    except Exception as catch_all :
+        # TODO: log for catchall
+        ...
+    finally :
+        if len(character_entries.keys()) < 1 :
+            character_entries = None
 
     # grab staff information
     staff_entries = {}
-    for table in staff_soup :
-        td = table.find('td', attrs={'width' : None})
-        staff_name = td.find('a').text.strip()
-        staff_link = td.find('a').get('href').strip()
-        staff_roles = td.find('div', class_='spaceit_pad').text.strip()
-        if staff_roles.find(',') > 0 :
-            staff_roles = staff_roles.split(', ')
-        staff_entries[staff_name] = {
-            'roles' : staff_roles,
-            'link' : staff_link
-        }
+    try :
+        staff_soup = soup.find('div', class_='rightside js-scrollfix-bottom-rel')
+        staff_soup = staff_soup.find_all('table', class_=None)
+        for table in staff_soup :
+            td = table.find('td', attrs={'width' : None})
+            staff_name = td.find('a').text.strip()
+            staff_link = td.find('a').get('href').strip()
+            staff_roles = td.find('div', class_='spaceit_pad').text.strip()
+            if staff_roles.find(',') > 0 :
+                staff_roles = staff_roles.split(', ')
+            staff_entries[staff_name] = {
+                'roles' : staff_roles,
+                'link' : staff_link
+            }
+    except AttributeError as e :
+        # TODO: log this at some point
+        ...
+    except Exception as catch_all :
+        # TODO: log for catchall
+        ...
+    finally :
+        if len(staff_entries.keys()) < 1 :
+            staff_entries = None
 
     return (character_entries, staff_entries)
     
