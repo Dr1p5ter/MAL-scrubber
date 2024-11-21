@@ -185,9 +185,9 @@ def get_anime_synopsis_section(anime_dict : dict, soup : BeautifulSoup) -> None 
     try :
         synop = "".join([line.get_text(strip=True) for line in soup.find_all('p', itemprop='description')])
         anime_dict['synopsis'] = synop
-    except Exception as catch_all :
-        # TODO: log for catchall
-        ...
+    except AttributeError as e :
+        print(f'Exception {e.name} has occured with URL {anime_dict['url']} [entry possibly has fewer attributes or has none]')
+        print(f'{e}')
 
 def get_anime_character_staff_section(anime_url : str, thread_info_enabled : bool) -> tuple[dict, dict] :
     """
@@ -238,11 +238,8 @@ def get_anime_character_staff_section(anime_url : str, thread_info_enabled : boo
                 }
                 character_entries[character_name]['actors'].append(actor_entry)
     except AttributeError as e :
-        # TODO: log this at some point
-        ...
-    except Exception as catch_all :
-        # TODO: log for catchall
-        ...
+        print(f'Exception {e.name} has occured with URL {anime_url} [entry possibly has fewer attributes or has none]')
+        print(f'{e}')
     finally :
         if len(character_entries.keys()) < 1 :
             character_entries = None
@@ -264,11 +261,8 @@ def get_anime_character_staff_section(anime_url : str, thread_info_enabled : boo
                 'link' : staff_link
             }
     except AttributeError as e :
-        # TODO: log this at some point
-        ...
-    except Exception as catch_all :
-        # TODO: log for catchall
-        ...
+        print(f'Exception {e.name} has occured with URL {anime_url} [entry possibly has fewer attributes or has none]')
+        print(f'{e}')
     finally :
         if len(staff_entries.keys()) < 1 :
             staff_entries = None
