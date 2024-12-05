@@ -1,6 +1,7 @@
 # imports
 
 from pymongo import MongoClient
+from pymongo.synchronous.cursor import Cursor
 from threading import Lock, get_ident
 from typing import Any
 
@@ -146,6 +147,52 @@ def update_doc_in_mongo(query_criteria : dict,
         client.close()
 
         return res.acknowledged
+    except Exception as e:
+        raise e
+
+def generate_cursor(database : str,
+                           collection : str,
+                           thread_info_enabled : bool,
+                           query : dict = {}) -> Cursor :
+    """
+    generate_cursor : This functin will generate a cursor object for traversing
+    a collection within the database. The query by default is set to empty to
+    inclusively go through each document. This can be changed. There is no need
+    to close the cursor explicitely since pymongo by default will close the
+    cursor once there is no longer any more entries in the queue.
+
+    Arguments:
+        database -- The name of the database within mongodb
+        collection -- The collection inside of the database
+        thread_info_enabled -- When threads are implimented this will allow a
+        print statement for debugging
+
+    Keyword Arguments:
+        query -- ruleset for the find operation used for making the cursor
+        (default: {})
+
+    Raises:
+        Exception: Connection/Issue pertaining to MongoDB
+
+    Returns:
+        Cursor that holds entries being retrieved.
+    """
+    # give a heads up in the console that this has been called
+    if thread_info_enabled is True :
+        print(f'thread {get_ident():5} is running generate_cursor')
+
+    # make a connection to mongodb
+    try:
+        client = MongoClient(mongodb_host)
+        client.admin.command("ping")
+
+        # go to collection
+        col = client[database][collection]
+
+        # generate cursor
+        cursor : Cursor = col.find(query)
+
+        return cursor
     except Exception as e:
         raise e
 

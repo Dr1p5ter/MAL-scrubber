@@ -202,12 +202,20 @@ def get_season_entry(season_name : str,
                 'season' : season_name.split(' ')[0].lower(),
                 'year' : int(season_name.split(' ')[1]),
                 'datetime_entered' : get_datetime_now(),
+                'datetime_filled' : None
             }
 
             # initialize document
             init_anime_entry(anime_entry,
                              thread_info_enabled,
                              to_mongodb)
+
+            # get rid of the redundant information for the season entry
+            anime_entry.pop('url')
+            anime_entry.pop('season')
+            anime_entry.pop('year')
+            anime_entry.pop('datetime_entered')
+            anime_entry.pop('datetime_filled')
 
             # append it to the seasonal_anime tab
             season_entry["seasonal_anime"].append(anime_entry)
