@@ -1,16 +1,25 @@
-from concurrent.futures import ThreadPoolExecutor
-from json import load
-from os import listdir
-from util.anime import get_anime_entry
-from util.datenow import get_datetime_now
-from util.init import *
-from util.mongodb import update_doc_in_mongo, mongodb_database_name, mongodb_season_collection
-from util.season import get_season_entry, make_archive_list_to_csv, archive_file, season_dir, update_season_entry_to_disk
+# imports
 
-# does nothing CRUD app
+import argparse
+
+# parser for grabbing settings needed for storing data
+p = argparse.ArgumentParser()
+p.add_argument('-t', '--threadinfo', help='enable thread info in terminal upon calls', action='store_true')
+p.add_argument('-m', '--mongodb', help='enable mongodb connection (no disk writing)', action='store_true')
+args = p.parse_args()
+
+# app
 if __name__ == '__main__' :
+    # local imports
+    from concurrent.futures import ThreadPoolExecutor
+    from json import load
+    from os import listdir
+    from util.anime import get_anime_entry
+    from util.init import *
+    from util.season import get_season_entry, make_archive_list_to_csv, archive_file, season_dir
+
     # make the csv of season names and urls from the archive
-    make_archive_list_to_csv(True, True)
+    make_archive_list_to_csv(True, args.threadinfo)
     
     # get data on every season and upload them to mongodb
     with open(season_dir + archive_file, 'r') as file :
@@ -19,8 +28,8 @@ if __name__ == '__main__' :
                 executor.submit(get_season_entry,
                                 line.strip().split(', ')[0],
                                 line.strip().split(', ')[1],
-                                True,
-                                True)
+                                args.threadinfo,
+                                args.mongodb)
                 for line in file.readlines()
             ]
 
@@ -37,28 +46,14 @@ if __name__ == '__main__' :
             season_entry = load(fp)
 
         # generate a pool of threads to fill in anime data
-        if not season_entry['all_anime_entries_filled'] :
-            anime_entries = season_entry['seasonal_anime']
-            with ThreadPoolExecutor() as executor :
-                [
-                    executor.submit(get_anime_entry,
-                                    anime['_id'],
-                                    anime['name'],
-                                    anime['url'],
-                                    True,
-                                    True)
-                    for anime in anime_entries]
-                
-            # update the season information and write it 
-            season_entry['datetime_filled'] = get_datetime_now()
-            season_entry['all_anime_entries_filled'] = True
-
-            # update this to disk
-            update_season_entry_to_disk(season_entry)
-
-            # update this to mongodb
-            update_doc_in_mongo({'_id' : season_entry['_id']},
-                                season_entry,
-                                mongodb_database_name,
-                                mongodb_season_collection,
-                                True)
+        anime_entries = season_entry['seasonal_anime']
+        with ThreadPoolExecutor() as executor :
+            [
+                executor.submit(get_anime_entry,
+                                anime['_id'],
+                                anime['name'],
+                                anime['url'],
+                                args.threadinfo,
+                                args.mongodb)
+                for anime in anime_entries]
+    exit(0)

@@ -4,9 +4,10 @@ from bs4 import BeautifulSoup
 from json import dumps, load
 from os import path
 from threading import Lock, get_ident
+from util.anime import init_anime_entry
 from util.datenow import get_datetime_now
 from util.jsonformat import json_indent_len
-from util.mongodb import get_anime_id, get_season_id, mongodb_season_collection, mongodb_database_name, insert_doc_into_mongo
+from util.mongodb import get_anime_id, get_season_id, mongodb_season_collection, mongodb_database_name, insert_doc_into_mongo, grab_doc_from_mongo
 from util.mount import *
 
 # static var
@@ -127,9 +128,24 @@ def get_season_entry(season_name : str,
     if thread_info_enabled :
         print(f'thread {get_ident():5} is running get_season_entry')
 
+    # grab document from disk or mongodb :
+    season_entry : dict = {}
+    if to_mongodb :
+        season_entry = grab_doc_from_mongo({'url' : season_url},
+                                            mongodb_database_name,
+                                            mongodb_season_collection,
+                                            thread_info_enabled)
+    else :
+        with season_dir_lock :
+            with open(season_data_path + season_name_to_file_name(season_name), 'r') as file :
+                season_entry = load(file)
+
+    # make sure the entry is not of NoneTime
+    if season_entry == None :
+        season_entry = {}
+
     # grab data if it exists
-    season_dict = {}
-    if not path.exists(season_data_path + season_name_to_file_name(season_name)) :
+    if season_entry.get('datetime_filled', None) == None :
         # establish connection with MAL
         content, retried, ret = init_session(season_url, 
                                               get_season_entry, 
@@ -160,15 +176,14 @@ def get_season_entry(season_name : str,
         # find all sections
         soup = soup.find_all('a', class_='link-title')
 
-        # initialize the season_dict
-        season_dict = {
+        # initialize the season_entry
+        season_entry = {
             '_id' : get_season_id(),
             'season' : season_name.split(' ')[0].lower(),
             'year' : int(season_name.split(' ')[1]),
             'url' : season_url,
             'datetime_entered' : get_datetime_now(),
             'datetime_filled' : None,
-            'all_anime_entries_filled' : False,
             'total_anime_entries' : 0,
             'seasonal_anime' : [],
         }
@@ -180,47 +195,38 @@ def get_season_entry(season_name : str,
             anime_url = str(a.get('href')).strip()
 
             # place the information into a dictionary
-            anime_info = {
+            anime_entry = {
                 '_id' : get_anime_id(),
                 'name' : anime_name,
-                'url' : anime_url
+                'url' : anime_url,
+                'season' : season_name.split(' ')[0].lower(),
+                'year' : int(season_name.split(' ')[1]),
+                'datetime_entered' : get_datetime_now(),
             }
 
+            # initialize document
+            init_anime_entry(anime_entry,
+                             thread_info_enabled,
+                             to_mongodb)
+
             # append it to the seasonal_anime tab
-            season_dict["seasonal_anime"].append(anime_info)
+            season_entry["seasonal_anime"].append(anime_entry)
 
         # check to see if there are anime series present in series
-        num_anime_entries = len(season_dict['seasonal_anime'])
-        if num_anime_entries < 1 :
-            season_dict['all_anime_entries_filled'] = True
-            season_dict['datetime_filled'] = get_datetime_now()
-        else :
-            season_dict['total_anime_entries'] = num_anime_entries
-        season_dict['total_anime_entries'] = num_anime_entries
+        season_entry['total_anime_entries'] = len(season_entry['seasonal_anime'])
+        season_entry['datetime_filled'] = get_datetime_now()
 
         # write out the json as the season_name
         if to_mongodb :
-            try :
-                insert_doc_into_mongo(season_dict,
-                                      mongodb_database_name,
-                                      mongodb_season_collection,
-                                      thread_info_enabled)
-            except Exception as e :
-                print(e)
-            
-        # write to disk
-        with season_dir_lock :
-            with open(season_data_path + season_name_to_file_name(season_name), 'w') as file :
-                file.write(dumps(season_dict, indent=json_indent_len))
-    else :
-        with season_dir_lock :
-            with open(season_data_path + season_name_to_file_name(season_name), 'r') as file :
-                season_dict = load(file)
+            insert_doc_into_mongo(season_entry,
+                                    mongodb_database_name,
+                                    mongodb_season_collection,
+                                    thread_info_enabled)
+        else :
+            # write to disk
+            with season_dir_lock :
+                with open(season_data_path + season_name_to_file_name(season_name), 'w') as file :
+                    file.write(dumps(season_entry, indent=json_indent_len))
 
-    # return the season_dict
-    return season_dict
-
-def update_season_entry_to_disk(season_entry : dict) -> None :
-    with season_dir_lock :
-        with open(season_dir + season_name_to_file_name(season_entry['season'] + ' ' + str(season_entry['year'])), 'w') as file :
-            file.write(dumps(season_entry, indent=json_indent_len))
+    # return the season_entry
+    return season_entry

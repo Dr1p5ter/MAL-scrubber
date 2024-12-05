@@ -6,7 +6,7 @@ from os import path
 from threading import Lock, get_ident
 from util.datenow import get_datetime_now
 from util.jsonformat import json_indent_len
-from util.mongodb import insert_doc_into_mongo, mongodb_anime_collection, mongodb_database_name
+from util.mongodb import update_doc_in_mongo, insert_doc_into_mongo, grab_doc_from_mongo, mongodb_anime_collection, mongodb_database_name
 from util.mount import *
 
 # static var
@@ -18,8 +18,6 @@ info_not_found_str_regex = 'None found,add some'                     # regex for
 # functions
 
 def get_anime_entry(anime_id : int,
-                    anime_name : str, 
-                    anime_url : str,
                     to_mongodb : bool,
                     thread_info_enabled : bool,
                     anime_data_path : str = anime_dir,) -> dict | None :
@@ -29,8 +27,6 @@ def get_anime_entry(anime_id : int,
 
     Arguments:
         anime_id -- Unique identifier used within the season entry
-        anime_name -- Name of the anime
-        anime_url -- URL pointing to the anime series
         to_mongodb -- When enabled it establishes connection to mongodb for
         storage; consult mongodb.py for mongodb implimentation
         thread_info_enabled -- When threads are implimented this will allow a
@@ -49,74 +45,112 @@ def get_anime_entry(anime_id : int,
     if thread_info_enabled :
         print(f'thread {get_ident():5} is running get_anime_entry')
 
-    # grab data if it exists
-    anime_dict = {}
-    if not path.exists(anime_data_path + anime_id_to_file_name(anime_id)) :
+    # grab document from disk or mongodb :
+    anime_entry : dict = {}
+    if to_mongodb :
+        anime_entry = grab_doc_from_mongo({'_id' : anime_id},
+                                            mongodb_database_name,
+                                            mongodb_anime_collection,
+                                            thread_info_enabled)
+    else :
+        with anime_dir_lock :
+            with open(anime_data_path + anime_id_to_file_name(anime_id), 'r') as file :
+                anime_entry = load(file)
+    
+    # make sure the entry is not of NoneTime
+    if anime_entry == None :
+        anime_entry = {}
+
+    # make sure that the entry wasn't already filled
+    if anime_entry.get('datetime_filled', None) == None :
         # establish connection
-        content, retried, ret = init_session(anime_url,
-                                             get_anime_entry,
-                                             thread_info_enabled,
-                                             args = [
-                                                 anime_id,
-                                                 anime_name, 
-                                                 anime_url,
-                                                 to_mongodb,
-                                                 thread_info_enabled
-                                             ],
-                                             kwargs = {
-                                                 'anime_data_path' : anime_data_path
-                                             })
+        content, retried, ret = init_session(anime_entry['url'],
+                                            get_anime_entry,
+                                            thread_info_enabled,
+                                            args = [
+                                                anime_id,
+                                                to_mongodb,
+                                                thread_info_enabled
+                                            ],
+                                            kwargs = {
+                                                'anime_data_path' : anime_data_path
+                                            })
 
         # if the entire function needed a reset return the value finished with even if None
         if retried :
             return ret
-
-        # initialize object
-        anime_dict = {
-            '_id' : anime_id,
-            'name' : anime_name,
-            'url' : anime_url,
-            'datetime_filled' : get_datetime_now()
-        }
-
+        
         # grab data fields
         section_list_func = [
             get_anime_information_section,
             get_anime_synopsis_section,
         ]
-
         for func in section_list_func :
-            func(anime_dict, BeautifulSoup(content, 'html.parser'))
+            func(anime_entry, BeautifulSoup(content, 'html.parser'))
 
         # traverse the character/staff fields as well
-        char_dict, staff_dict = get_anime_character_staff_section(anime_url, thread_info_enabled)
+        char_dict, staff_dict = get_anime_character_staff_section(anime_entry['url'], thread_info_enabled)
         if char_dict != None :
-            anime_dict['characters'] = char_dict
+            anime_entry['characters'] = char_dict
         if staff_dict != None :
-            anime_dict['staff'] = staff_dict
-        
-        # tries to write it to mongodb
+            anime_entry['staff'] = staff_dict
+
+        # modify the filled datetime filled
+        anime_entry['datetime_filled'] = get_datetime_now()
+
+        # tries to update document it to mongodb
         if to_mongodb :
             try :
-                res = insert_doc_into_mongo(anime_dict,
-                                            mongodb_database_name,
-                                            mongodb_anime_collection,
-                                            thread_info_enabled)
+                update_doc_in_mongo({'_id' : anime_id},
+                                    anime_entry,
+                                    mongodb_database_name,
+                                    mongodb_anime_collection,
+                                    thread_info_enabled)
             except Exception as e :
-                print(e)
+                print(f'Exception in get_anime_entry() during replacement : {e}\nanime_id : {anime_id}')
+                return None
 
         # write to disk
         with anime_dir_lock :
             with open(anime_data_path + anime_id_to_file_name(anime_id), 'w+') as file :
-                file.write(dumps(anime_dict, indent=json_indent_len))
-    else :
-        # read the entry and return it
-        with anime_dir_lock :
-            with open(anime_data_path + anime_id_to_file_name(anime_id), 'r') as file :
-                anime_dict = load(file)
+                file.write(dumps(anime_entry, indent=json_indent_len))
+    
+    # return the entry
+    return anime_entry
 
-    # return the season_dict
-    return anime_dict
+def init_anime_entry(anime_entry : dict,
+                     thread_info_enabled : bool,
+                     to_mongodb : bool,
+                     anime_data_path : str = anime_dir) -> None :
+    """
+    init_anime_entry : This function will initialize documents depending on the
+    setting selected for mongodb.
+
+    Arguments:
+        anime_entry -- Document to be inserted
+        thread_info_enabled -- When threads are implimented this will allow a
+        print statement for debugging
+        to_mongodb -- When enabled it establishes connection to mongodb for
+        storage
+
+    Keyword Arguments:
+        anime_data_path -- This defines the destination the resultants are
+        stored at ( default: anime_dir )
+    """
+    # give a heads up in the console that this has been called
+    if thread_info_enabled :
+        print(f'thread {get_ident():5} is running init_anime_entry')
+    
+    # write to disk or to mongodb
+    if to_mongodb :
+        insert_doc_into_mongo(anime_entry,
+                              mongodb_database_name,
+                              mongodb_anime_collection,
+                              thread_info_enabled)
+    else :
+        with anime_dir_lock:
+            with open(anime_data_path + anime_id_to_file_name(anime_entry['_id']), 'w') as file :
+                file.write(dumps(anime_entry))
 
 def anime_id_to_file_name(anime_id : int) -> str : 
     """
