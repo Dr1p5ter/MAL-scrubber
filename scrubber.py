@@ -45,8 +45,6 @@ if __name__ == '__main__' :
                 [
                     executor.submit(get_anime_entry,
                                     anime['_id'],
-                                    anime['name'],
-                                    anime['url'],
                                     args.threadinfo,
                                     args.mongodb)
                     for anime in anime_entries]
