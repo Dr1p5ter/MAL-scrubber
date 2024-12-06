@@ -272,7 +272,7 @@ def get_anime_character_staff_section(anime_url : str, thread_info_enabled : boo
                 }
                 character_entries[character_name]['actors'].append(actor_entry)
     except AttributeError as e :
-        print(f'Exception {e.name} has occured with URL {anime_url} [entry possibly has fewer attributes or has none]')
+        print(f'Exception {e.name} has occured with URL {anime_url} [character field empty]')
         print(f'{e}')
     finally :
         if len(character_entries.keys()) < 1 :
@@ -295,7 +295,7 @@ def get_anime_character_staff_section(anime_url : str, thread_info_enabled : boo
                 'link' : staff_link
             }
     except AttributeError as e :
-        print(f'Exception {e.name} has occured with URL {anime_url} [entry possibly has fewer attributes or has none]')
+        print(f'Exception {e.name} has occured with URL {anime_url} [staff field empty]')
         print(f'{e}')
     finally :
         if len(staff_entries.keys()) < 1 :
