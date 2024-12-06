@@ -1,5 +1,6 @@
 # imports
 
+from pickle import dump, load
 from pymongo import MongoClient
 from pymongo.synchronous.cursor import Cursor
 from threading import Lock, get_ident
@@ -14,6 +15,7 @@ season_counter = 0
 
 anime_counter_lock = Lock()                                          # lock used for the global anime counter
 mongodb_anime_collection = 'animes'                                  # the anime collection within mongodb database
+mongodb_anime_ids_serialized = '_id_logger.pkl'                      # file to the object
 mongodb_database_name = "MAL-Scrubber"                               # the database associated with this project
 mongodb_host = 'mongodb://localhost:27017/'                          # hostname of mongodb instance
 mongodb_season_collection = 'seasons'                                # the season collection within mongodb database
