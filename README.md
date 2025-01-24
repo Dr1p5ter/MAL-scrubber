@@ -8,7 +8,7 @@ This has been a fun experience but there is a few things I need to note about th
 
 # MAL-Scrubber Project
 
-This project was intended on being a web crawler that snags information on webpages hosted by [MyAnimeList](myanimelist.net) with the purpose of gathering data. This data can be shared online with everyone and used for their own gain or to use for their personal projects.
+This project was intended on being a web crawler that snags information on webpages hosted by [MyAnimeList](https://myanimelist.net) with the purpose of gathering data. This data can be shared online with everyone and used for their own gain or to use for their personal projects.
 
 ## Requirements
 
