@@ -1,41 +1,45 @@
-# MAL-scrubber
+# Project Archived
 
-## Table of Contents
+This has been a fun experience but there is a few things I need to note about this repository:
 
-* [Description](https://github.com/Dr1p5ter/MAL-scrubber#Description)
-* [Installation](https://github.com/Dr1p5ter/MAL-scrubber#Installation)
-* [Testing](https://github.com/Dr1p5ter/MAL-scrubber#Testing)
-* [MongoDB](https://github.com/Dr1p5ter/MAL-scrubber#MongoDB)
-* [Current Plans For Now](https://github.com/Dr1p5ter/MAL-scrubber#Current_Plans_For_Now)
-* [Contact](https://github.com/Dr1p5ter/MAL-scrubber#Contact)
+1. This program is still runnable and works however, there is some optomization that needs to be covered
+2. I will still provide detailed instructions on usage of scrubber.py below
+3. Please check out my new version that I am making soon [here](...)
 
-## Description
+# MAL-Scrubber Project
 
-> This project is dedicated to my personal growth with MongoDB and Flask. I want to emphasize I am not finished with all the parts but I am almost finished with the application portion. Most of the heavy lifting will be done through local instances that incorperating a naive approach to cacheing. Database retrieval will be set to default midst runtime with Flask. This portion of the project has not been implemented yet.
+This project was intended on being a web crawler that snags information on webpages hosted by [MyAnimeList](myanimelist.net) with the purpose of gathering data. This data can be shared online with everyone and used for their own gain or to use for their personal projects.
 
-> The subdirectory '/util' contains most if not all of the helper functions that Flask will be using on runtime. app.py will be dedicated for Flask and all other html,css,js files will have their own subdirectories in the future.
+## Requirements
 
-## Installation
+* Python 3.6+
+    * BeautifulSoup
+    * pymoongo
+    * typing
+    * requests
 
-> This project right now supports the us and deployment of scrubber.py which will be in the home directory. To get started, open up a bash terminal and run make_venv.sh to initiate an enviornment. This is not manditory but will be good practive when launching app.py in the future. Then you just need to enter the enviornment and run scrubber.py to begin populating the data subdirectories.
+## Usage
 
-#### Disclaimer
-> I will change this at some point consult README.md for changes.
+There are two important things to consider when beginning the scrubber.py script. These will be highlighted below:
 
-## Testing
+### MongoDB Instance Connection
+    Within the util/mongodb.py file, there exists some important session variables to consider. The first being mongodb_database_name which has a default value "MAL-Scrubber" stored as a string. This variable primarily serves to connect the pymongo client to the MongoDB instance. When booting up MongoDB Atlas or the MongoDB Shell, this must be the name for the database in order to utilize the dynamic schema functionality of NoSQL databases. This value can be changed by default and will not alter the functionality of the app (so long as it can establish a connection to the host).
 
-> Testing files will be written again at some point using pytest instead of unittest
+    The variable mongodb_host by default set to "mongodb://localhost:27017/" as a string, can be modified as well if the mongodb instance is not hosted using your local machine. This again only serves as backbone to the pymongo client.
 
-### MongoDB
+    "A note about about the collections within your database, these should stay the same and shouldn't be modified. They are crucial aspects in the functionality and naming convention I have set up. If you do tinker with the collection names than I insist you do it at your own discretion."
+    - Matt
 
-> Connecting to MongoDB should be looked at through the tutorial that MongoDB provides. I will try to make this more accessable in the future. In the meantime, please look at 'util/mongodb.py' for information on connecting your instance of this database. Upon runtime I will have archeive data to play with so running scrubber.py will not be necessary. I will do the heavy lifting.
+### Runtime
+    I use argparse to allow users upon runtime of scrubber.py to modify the use and functionality that is being provided. If you get confused on what each flag is doing then use the -h flag. Concurrent functionality can sometimes seem like race conditions come with the cons when in reality they should never happen. Debugging as a choice helps not only me but you figure out if there is a bug I can iron out at a later date.
 
-## Current Plans For Now
+## Archive Data Folder
 
-> Making the testing documents with pytest will be my new priority once I finalize other bug fixes. Releases are to come.
+There are 7Zip folders that hold compressed snapshots of my own personal runtime of the program. The format of such data has changed when I ran it last. I expect my attribute names to be human readable and therefore not needing a README going over each small detail. At a later time I will incorperate better and more complex data in the future in the next version mentioned in the [Project Archive](https://github.com/Dr1p5ter/MAL-scrubber#Project-Archived) section above. 
 
 ## Contact
 
-I am always eager to learn. If you think I can make something better feel free to contact me anytime!!
+Feel free to contact me regarding any questions you might have!
 
-email: mmclaren2021@outlook.com
+**Name:** *Matthew McLaren*  
+**Business Email:** *mmclaren2021@outlook.com*
