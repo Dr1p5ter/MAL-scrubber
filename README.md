@@ -4,7 +4,7 @@ This has been a fun experience but there is a few things I need to note about th
 
 1. This program is still runnable and works however, there is some optomization that needs to be covered
 2. I will still provide detailed instructions on usage of scrubber.py below
-3. Please check out my new version that I am making soon [here](...)
+3. Please check out my new version that I am making soon [here](https://github.com/Dr1p5ter/MAL_Data_Fetcher)
 
 # MAL-Scrubber Project
 
